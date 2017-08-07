@@ -5,6 +5,17 @@ var _ = require('underscore');
  * Model for a time-series widget
  */
 module.exports = WidgetModel.extend({
+  defaults: {
+    normalized: true
+  },
+
+  defaultState: _.extend(
+    {
+      normalized: false
+    },
+    WidgetModel.prototype.defaultState
+  ),
+
   getState: function () {
     var state = WidgetModel.prototype.getState.call(this);
     var start = this.dataviewModel.get('start');
@@ -22,7 +33,7 @@ module.exports = WidgetModel.extend({
       return false;
     };
 
-    if (_.isNumber(lo) && _.isNumber(hi)) {
+    if (_.isNumber(lo) && _.isNumber(hi) && lo < data.length && (hi - 1) < data.length) {
       l = data[lo].start;
       m = data[hi - 1].end;
     } else {
@@ -39,5 +50,4 @@ module.exports = WidgetModel.extend({
 
     return state;
   }
-
 });

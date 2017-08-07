@@ -54,11 +54,11 @@ WidgetsService.prototype.createCategoryModel = function (attrs, layer, state) {
   attrs = _.extend(attrs, state, {hasInitialState: this._widgetsCollection.hasInitialState()}); // Will overwrite preset attributes with the ones passed on the state
   var dataviewModel = this._dataviews.createCategoryModel(layer, attrs);
 
-  var attrsNames = ['id', 'title', 'order', 'collapsed', 'prefix', 'suffix', 'show_stats', 'style', 'hasInitialState'];
-  var widgetAttrs = _.pick(attrs, attrsNames);
+  var ATTRS_NAMES = ['id', 'title', 'order', 'collapsed', 'prefix', 'suffix', 'show_stats', 'show_source', 'style', 'hasInitialState'];
+  var widgetAttrs = _.pick(attrs, ATTRS_NAMES);
   var options = makeWidgetStyleOptions(attrs);
 
-  widgetAttrs.attrsNames = attrsNames;
+  widgetAttrs.attrsNames = ATTRS_NAMES;
 
   var widgetModel = new CategoryWidgetModel(widgetAttrs, {
     dataviewModel: dataviewModel
@@ -79,10 +79,16 @@ WidgetsService.prototype.createCategoryModel = function (attrs, layer, state) {
  */
 WidgetsService.prototype.createHistogramModel = function (attrs, layer, state, opts) {
   _checkProperties(attrs, ['title']);
-  var dataAttrs = _.extend(attrs, state, {hasInitialState: this._widgetsCollection.hasInitialState()}); // Will overwrite preset attributes with the ones passed on the state
+  var dataAttrs = _.extend(attrs, state, { hasInitialState: this._widgetsCollection.hasInitialState() }); // Will overwrite preset attributes with the ones passed on the state
   var dataviewModel = this._dataviews.createHistogramModel(layer, dataAttrs);
 
-  var attrsNames = ['id', 'title', 'order', 'collapsed', 'bins', 'show_stats', 'normalized', 'style', 'hasInitialState'];
+  // Default bins attribute was removed from dataViewModel because of time-series aggregation.
+  // Just in case it's needed for histogram models we added it here.
+  if (!dataviewModel.has('bins')) {
+    dataviewModel.set('bins', 10, { silent: true });
+  }
+
+  var attrsNames = ['id', 'title', 'order', 'collapsed', 'bins', 'show_stats', 'show_source', 'normalized', 'style', 'hasInitialState'];
   var widgetAttrs = _.pick(attrs, attrsNames);
   var options = makeWidgetStyleOptions(attrs);
 
@@ -111,10 +117,10 @@ WidgetsService.prototype.createFormulaModel = function (attrs, layer, state) {
   attrs = _.extend(attrs, state, {hasInitialState: this._widgetsCollection.hasInitialState()}); // Will overwrite preset attributes with the ones passed on the state
   var dataviewModel = this._dataviews.createFormulaModel(layer, attrs);
 
-  var attrsNames = ['id', 'title', 'order', 'collapsed', 'prefix', 'suffix', 'show_stats', 'description', 'hasInitialState'];
-  var widgetAttrs = _.pick(attrs, attrsNames);
+  var ATTRS_NAMES = ['id', 'title', 'order', 'collapsed', 'prefix', 'suffix', 'show_stats', 'show_source', 'description', 'hasInitialState'];
+  var widgetAttrs = _.pick(attrs, ATTRS_NAMES);
   widgetAttrs.type = 'formula';
-  widgetAttrs.attrsNames = attrsNames;
+  widgetAttrs.attrsNames = ATTRS_NAMES;
 
   var widgetModel = new WidgetModel(widgetAttrs, {
     dataviewModel: dataviewModel
@@ -138,10 +144,10 @@ WidgetsService.prototype.createListModel = function (attrs, layer) {
 
   var dataviewModel = this._dataviews.createListModel(layer, attrs);
 
-  var attrsNames = ['id', 'title', 'order', 'columns_title', 'show_stats'];
-  var widgetAttrs = _.pick(attrs, attrsNames);
+  var ATTRS_NAMES = ['id', 'title', 'order', 'columns_title', 'show_stats', 'show_source'];
+  var widgetAttrs = _.pick(attrs, ATTRS_NAMES);
   widgetAttrs.type = 'list';
-  widgetAttrs.attrsNames = attrsNames;
+  widgetAttrs.attrsNames = ATTRS_NAMES;
 
   var widgetModel = new WidgetModel(widgetAttrs, {
     dataviewModel: dataviewModel
@@ -163,10 +169,10 @@ WidgetsService.prototype.createTimeSeriesModel = function (attrs, layer, state, 
   attrs.column_type = attrs.column_type || 'date';
   var dataviewModel = this._dataviews.createHistogramModel(layer, attrs);
 
-  var attrsNames = ['id', 'style'];
-  var widgetAttrs = _.pick(attrs, attrsNames);
+  var ATTRS_NAMES = ['id', 'style', 'title', 'normalized'];
+  var widgetAttrs = _.pick(attrs, ATTRS_NAMES);
   widgetAttrs.type = 'time-series';
-  widgetAttrs.attrsNames = attrsNames;
+  widgetAttrs.attrsNames = ATTRS_NAMES;
 
   var widgetModel = new TimeSeriesWidgetModel(widgetAttrs, {
     dataviewModel: dataviewModel

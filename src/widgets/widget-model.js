@@ -12,7 +12,8 @@ var AutoStylerFactory = require('./auto-style/factory');
 module.exports = cdb.core.Model.extend({
   defaults: {
     attrsNames: [],
-    show_stats: false
+    show_stats: false,
+    show_source: false
   },
 
   defaultState: {
@@ -87,11 +88,14 @@ module.exports = cdb.core.Model.extend({
 
   getWidgetColor: function () {
     var styles = this.get('style');
+    var widgetStyle = styles && styles.widget_style;
+    var widgetColor = widgetStyle && widgetStyle.definition &&
+      widgetStyle.definition.color &&
+      widgetStyle.definition.color.fixed;
+    var widgetColorChanged = widgetStyle && widgetStyle.widget_color_changed ||
+      widgetStyle && !widgetStyle.widget_color_changed && widgetColor !== '#9DE0AD';
 
-    return styles && styles.widget_style &&
-          styles.widget_style.definition &&
-          styles.widget_style.definition.color &&
-          styles.widget_style.definition.color.fixed;
+    return widgetColorChanged && widgetColor;
   },
 
   hasColorsAutoStyle: function () {
@@ -175,6 +179,15 @@ module.exports = cdb.core.Model.extend({
     }
 
     return {};
+  },
+
+  _updateAutoStyle: function (_model, style) {
+    if (this.autoStyler) {
+      this.autoStyler.updateStyle(style);
+    }
+    if (this.isAutoStyle()) {
+      this.reapplyAutoStyle();
+    }
   },
 
   setInitialState: function (state) {

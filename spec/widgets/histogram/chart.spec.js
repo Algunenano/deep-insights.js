@@ -78,6 +78,7 @@ describe('widgets/histogram/chart', function () {
 
     this.view = new WidgetHistogramChart(({
       el: $('.js-chart'),
+      type: 'histogram',
       margin: this.margin,
       chartBarColor: '#9DE0AD',
       hasHandles: true,
@@ -898,6 +899,26 @@ describe('widgets/histogram/chart', function () {
       _.times(dataSize, function (i) {
         expect(this.view.$('.CDB-Chart-bar:eq(' + i + ')').attr('fill')).toContain('url(#bar-');
       }, this);
+    });
+  });
+
+  describe('touch interfaces fixes', function () {
+    it('should mark all brush elements with ps-prevent-touchmove', function () {
+      var brush = this.view.$('g.Brush');
+
+      var hasProperClass = function (e) {
+        return e.attributes.class.value.indexOf('ps-prevent-touchmove') !== 1;
+      };
+
+      var checkAllChildren = function (child) {
+        expect(hasProperClass(child)).toBe(true);
+
+        if (child.children && child.children.length > 0) {
+          _.forEach(child.children, checkAllChildren);
+        }
+      };
+
+      _.forEach(brush.children(), checkAllChildren);
     });
   });
 });
