@@ -275,16 +275,11 @@ module.exports = cdb.core.View.extend({
   },
 
   _onChangeRange: function () {
-    var lo_index = this.model.get('lo_index');
-    var hi_index = this.model.get('hi_index');
-    if ((lo_index === 0 && hi_index === 0) || (lo_index === null && hi_index === null)) {
-      return;
-    }
-
-    this.selectRange(lo_index, hi_index);
+    this.selectRange(this.model.get('min'), this.model.get('max'));
     this._adjustBrushHandles();
     this._setAxisTipAccordingToBins();
     this._selectBars();
+    console.log('AKI HAY QUE IMPLEMENTAR TODA LA CADENA QUE CONSUME ESTE EVENTO Y PASARLO A MINMAX');
     this.trigger('on_brush_end', lo_index, hi_index);
   },
 
@@ -297,9 +292,7 @@ module.exports = cdb.core.View.extend({
     }
     this.reset();
 
-    var loBarIndex = this.model.get('lo_index');
-    var hiBarIndex = this.model.get('hi_index');
-    this.selectRange(loBarIndex, hiBarIndex);
+    this.selectRange(this.model.get('min'), this.model.get('max'));
     this._updateAxisTip('left');
     this._updateAxisTip('right');
   },
@@ -421,6 +414,7 @@ module.exports = cdb.core.View.extend({
   },
 
   resetIndexes: function () {
+    console.log('AKI TIENES QUE IMPLEMENTAR QUE RESETEE MINMAX');
     this.model.set({ lo_index: null, hi_index: null });
   },
 
@@ -822,22 +816,13 @@ module.exports = cdb.core.View.extend({
     this._setupBrush();
   },
 
-  selectRange: function (loBarIndex, hiBarIndex) {
-    if (!loBarIndex && !hiBarIndex) {
-      return;
+  selectRange: function (min, max) {
+    console.log('chart::selectRange minmax [', min, ', ', max, ']');
+    if (_.isFinite(min) && _.isFinite(max)) {
+      var minBinIndex = this._getIndexFromValue(min);
+      var maxBinIndex = this._getIndexFromValue(max);
+      this._selectRange(minBinIndex, maxBinIndex);
     }
-
-    // -- HACK: Reset filter if any of the indexes is out of the scope
-    var data = this._dataviewModel.get('data');
-    if (!data[loBarIndex] || !data[hiBarIndex - 1]) {
-      return this.trigger('on_reset_filter');
-    }
-
-    var loPosition = this._getBarPosition(loBarIndex);
-    var hiPosition = this._getBarPosition(hiBarIndex);
-
-    this.model.set({ lo_index: loBarIndex, hi_index: hiBarIndex });
-    this._selectRange(loPosition, hiPosition);
   },
 
   _selectRange: function (loPosition, hiPosition) {
@@ -917,6 +902,7 @@ module.exports = cdb.core.View.extend({
   },
 
   _onBrushEnd: function () {
+    console.log('AKI HAY QUE IMPLEMENTAR QUE SE MUEVAN EL MIN MAX');
     var data = this.model.get('data');
     var brush = this.brush;
     var loPosition, hiPosition;
@@ -1621,6 +1607,7 @@ module.exports = cdb.core.View.extend({
   },
 
   _hasFilterApplied: function () {
+    console.log('AKI HAY QUE IMPLEMENTAR QUE LO CALCULE CON MIN MAX');
     return this.model.get('lo_index') != null && this.model.get('hi_index') != null;
   },
 

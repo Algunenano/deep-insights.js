@@ -200,6 +200,8 @@ module.exports = cdb.core.Model.extend({
       {hasInitialState: true}
     );
 
+    console.log('applyInitialState ', this.get('type'), ' ', this.cid, '- attrs: ', JSON.stringify(attrs));
+
     this.setState(attrs);
   },
 

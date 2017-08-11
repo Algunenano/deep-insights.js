@@ -21,7 +21,7 @@ module.exports = cdb.core.View.extend({
   },
 
   render: function () {
-    this.clearSubViews();
+    this.clearSubViews;
     this.$el.empty();
 
     var sourceId = this._dataviewModel.get('source').id;
@@ -57,6 +57,11 @@ module.exports = cdb.core.View.extend({
 
     this.listenTo(this._dataviewModel, 'change:data', this.render);
     this.listenToOnce(this.model, 'change:hasInitialState', this.render);
+    this.listenTo(this.model, 'change:lo_index change:hi_index change:min change:max', function () {
+      console.groupCollapsed('changes ', this.model.cid);
+      console.trace('changes ', this.model.changed);
+      console.groupEnd();
+    });
   },
 
   _createHistogramView: function () {
@@ -117,46 +122,15 @@ module.exports = cdb.core.View.extend({
   },
 
   _updateRange: function () {
-    var bars = this._calculateBars();
-    var lo = bars.loBarIndex;
-    var hi = bars.hiBarIndex;
-    if (lo !== 0 || hi !== this._dataviewModel.get('bins')) {
-      this._histogramView.selectRange(lo, hi);
+    var min = this.model.get('min');
+    var max = this.model.get('max');
+    if (_.isFinite(min) && _.isFinite(max)) {
+      this._histogramView.selectRange(min, max);
     }
   },
 
-  _calculateBars: function () {
-    var data = this._dataviewModel.getData();
-    var min = this.model.get('min');
-    var max = this.model.get('max');
-    var loBarIndex = this.model.get('lo_index');
-    var hiBarIndex = this.model.get('hi_index');
-    var startMin;
-    var startMax;
-
-    if (data.length > 0) {
-      if (!_.isNumber(min) && !_.isNumber(loBarIndex)) {
-        loBarIndex = 0;
-      } else if (_.isNumber(min) && !_.isNumber(loBarIndex)) {
-        startMin = _.findWhere(data, {start: min});
-        loBarIndex = startMin && startMin.bin || 0;
-      }
-
-      if (!_.isNumber(max) && !_.isNumber(hiBarIndex)) {
-        hiBarIndex = data.length;
-      } else if (_.isNumber(max) && !_.isNumber(hiBarIndex)) {
-        startMax = _.findWhere(data, {end: max});
-        hiBarIndex = startMax && startMax.bin + 1 || data.length;
-      }
-    } else {
-      loBarIndex = 0;
-      hiBarIndex = data.length;
-    }
-
-    return {
-      loBarIndex: loBarIndex,
-      hiBarIndex: hiBarIndex
-    };
+  _logFilter: function () {
+    return '' + this.cid + ' ' + this.model.cid + ' min max [' + this.model.get('min') + ' ' + this.model.get('max') + '] lo hi [' + this.model.get('lo_index') + ' ' + this.model.get('hi_index') + ']';
   },
 
   _appendView: function (view) {

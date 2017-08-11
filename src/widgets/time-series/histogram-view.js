@@ -30,8 +30,8 @@ module.exports = cdb.core.View.extend({
     return this;
   },
 
-  selectRange: function (loBarIndex, hiBarIndex) {
-    this._chartView.selectRange(loBarIndex, hiBarIndex);
+  selectRange: function (min, max) {
+    this._chartView.selectRange(min, max);
   },
 
   resetFilter: function () {
