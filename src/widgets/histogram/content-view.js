@@ -175,6 +175,8 @@ module.exports = cdb.core.View.extend({
       return;
     }
 
+    var newData = this._dataviewModel.getData();
+
     // if the action was initiated by the user
     // don't replace the stored data
     if (this.lockedByUser) {
@@ -182,11 +184,14 @@ module.exports = cdb.core.View.extend({
     } else {
       if (!this._isZoomed()) {
         this.histogramChartView.showShadowBars();
-        this.miniHistogramChartView.replaceData(this._dataviewModel.getData());
+        this.miniHistogramChartView.replaceData(newData);
       } else {
         this._filteredData = this._dataviewModel.getData();
       }
-      this.histogramChartView.replaceData(this._dataviewModel.getData());
+      this.histogramChartView.replaceData(newData);
+      if (this._isFilterApplied()) {
+        this._recalculateFilter();
+      }
     }
 
     if (this.unsettingRange) {
@@ -449,7 +454,6 @@ module.exports = cdb.core.View.extend({
   },
 
   _onChangeTotal: function () {
-    console.log('_onChangeTotal', this.model.get('total'));
     this._changeHeaderValue('.js-val', 'total', 'SELECTED');
   },
 
@@ -495,15 +499,13 @@ module.exports = cdb.core.View.extend({
       if (!_.isNumber(min)) {
         loBarIndex = 0;
       } else if (_.isNumber(min)) {
-        startMin = _.findWhere(data, {start: min});
-        loBarIndex = startMin && startMin.bin || 0;
+        loBarIndex = this._getIndexFromValue(data, min)
       }
 
       if (!_.isNumber(max)) {
         hiBarIndex = data.length;
       } else if (_.isNumber(max)) {
-        startMax = _.findWhere(data, {end: max});
-        hiBarIndex = startMax && startMax.bin + 1 || data.length;
+        hiBarIndex = this._getIndexFromValue(data, max);
       }
     } else {
       loBarIndex = 0;
@@ -517,7 +519,6 @@ module.exports = cdb.core.View.extend({
   },
 
   _updateStats: function () {
-    console.log('_updateStats');
     if (!this._initStateApplied) return;
     var data;
 
@@ -533,7 +534,6 @@ module.exports = cdb.core.View.extend({
 
     var nulls = this._dataviewModel.get('nulls');
     var bars = this._calculateBars(data);
-    console.log('_updateStats ', bars.loBarIndex, bars.hiBarIndex);
     var loBarIndex = bars.loBarIndex;
     var hiBarIndex = bars.hiBarIndex;
     var sum, avg, min, max;
@@ -543,24 +543,15 @@ module.exports = cdb.core.View.extend({
       sum = this._calcSum(data, loBarIndex, hiBarIndex);
       avg = this._calcAvg(data, loBarIndex, hiBarIndex);
 
-      if (loBarIndex >= 0 && loBarIndex < data.length) {
-        min = data[loBarIndex].start;
-      }
-
-      if (hiBarIndex >= 0 && hiBarIndex - 1 < data.length) {
-        max = data[Math.max(0, hiBarIndex - 1)].end;
-      }
-
       if (this._isZoomed() && this._numberOfFilters === 2) {
         attrs = {zmin: min, zmax: max, zlo_index: loBarIndex, zhi_index: hiBarIndex};
       } else if (!this._isZoomed() && this._numberOfFilters === 1) {
-        attrs = {min: min, max: max, lo_index: loBarIndex, hi_index: hiBarIndex};
+        attrs = { lo_index: loBarIndex, hi_index: hiBarIndex};
       }
 
       attrs = _.extend(
         { total: sum, nulls: nulls, avg: avg },
         attrs);
-      console.log('this.model.set(', JSON.stringify(attrs), ')');
       this.model.set(attrs);
     }
   },
@@ -643,6 +634,14 @@ module.exports = cdb.core.View.extend({
 
   _getIndexFromValue: function (data, value) {
     var index = null;
+    var limits = this._getDataLimits(data);
+    if (value < limits.minValue) {
+      return Number.MIN_SAFE_INTEGER;
+    }
+    if (value > limits.maxValue) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+
     _.each(data, function (bin, i) {
       if (bin.start <= value && value < bin.end) {
         index = i;
@@ -651,6 +650,31 @@ module.exports = cdb.core.View.extend({
       }
     });
     return index;
+  },
 
-  }
+  _isFilterApplied: function () {
+    return _.isFinite(this.model.get('min')) && _.isFinite(this.model.get('max'));
+  },
+
+  _recalculateFilter: function () {
+    var data = this._dataviewModel.getData();
+    var bars = this._calculateBars(data);
+    //console.log('bars recalculated: ', JSON.stringify(bars));
+  },
+
+  // TODO: to helper library
+  _getDataLimits: function (data) {
+    return _.reduce(data, function (memo, bin) {
+      if (_.isFinite(bin.start) && (bin.start < memo.minValue || _.isUndefined(memo.minValue))) {
+        memo.minValue = bin.start;
+      }
+      if (_.isFinite(bin.end) && (bin.end > memo.maxValue || _.isUndefined(memo.maxValue))) {
+        memo.maxValue = bin.end;
+      }
+      return memo;
+    }, {
+      minValue: undefined,
+      maxValue: undefined
+    });
+  },
 });
