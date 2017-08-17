@@ -92,6 +92,8 @@ module.exports = cdb.core.View.extend({
     this.hide(); // will be toggled on width change
 
     this._createFormatter();
+
+    window.chart = this;
   },
 
   render: function () {
@@ -275,12 +277,12 @@ module.exports = cdb.core.View.extend({
   },
 
   _onChangeRange: function () {
-    this.selectRange(this.model.get('min'), this.model.get('max'));
+    console.log('_onChangeRange');
+    this.selectRange(this.model.get('min'), this.model.get('max'), '_onChangeRange');
     this._adjustBrushHandles();
     this._setAxisTipAccordingToBins();
     this._selectBars();
-    console.log('AKI HAY QUE IMPLEMENTAR TODA LA CADENA QUE CONSUME ESTE EVENTO Y PASARLO A MINMAX');
-    this.trigger('on_brush_end', lo_index, hi_index);
+    this.trigger('on_brush_end', this.model.get('min'), this.model.get('max'));
   },
 
   _onChangeWidth: function () {
@@ -292,7 +294,7 @@ module.exports = cdb.core.View.extend({
     }
     this.reset();
 
-    this.selectRange(this.model.get('min'), this.model.get('max'));
+    this.selectRange(this.model.get('min'), this.model.get('max'), '_onChangeWidth');
     this._updateAxisTip('left');
     this._updateAxisTip('right');
   },
@@ -414,8 +416,14 @@ module.exports = cdb.core.View.extend({
   },
 
   resetIndexes: function () {
-    console.log('AKI TIENES QUE IMPLEMENTAR QUE RESETEE MINMAX');
-    this.model.set({ lo_index: null, hi_index: null });
+    // console.groupCollapsed('resetIndexes');
+    // console.trace();
+    // console.groupEnd();
+
+    this.model.set({
+      min: undefined,
+      max: undefined
+    });
   },
 
   removeShadowBars: function () {
@@ -549,7 +557,7 @@ module.exports = cdb.core.View.extend({
     this.listenTo(this.model, 'change:dragging', this._onChangeDragging);
     this.listenTo(this.model, 'change:height', this._onChangeHeight);
     this.listenTo(this.model, 'change:left_axis_tip', this._onChangeLeftAxisTip);
-    this.listenTo(this.model, 'change:lo_index change:hi_index', this._onChangeRange);
+    this.listenTo(this.model, 'change:min change:max', this._onChangeRange);
     this.listenTo(this.model, 'change:pos', this._onChangePos);
     this.listenTo(this.model, 'change:right_axis_tip', this._onChangeRightAxisTip);
     this.listenTo(this.model, 'change:showLabels', this._onChangeShowLabels);
@@ -816,16 +824,26 @@ module.exports = cdb.core.View.extend({
     this._setupBrush();
   },
 
-  selectRange: function (min, max) {
-    console.log('chart::selectRange minmax [', min, ', ', max, ']');
+  selectRange: function (min, max, from) {
+    console.groupCollapsed('selectRange(', min, ', ', max, ')');
+    console.trace();
+    console.groupEnd();
     if (_.isFinite(min) && _.isFinite(max)) {
+      this.model.set({
+        min: min,
+        max: max
+      });
       var minBinIndex = this._getIndexFromValue(min);
       var maxBinIndex = this._getIndexFromValue(max);
       this._selectRange(minBinIndex, maxBinIndex);
     }
   },
 
-  _selectRange: function (loPosition, hiPosition) {
+  _selectRange: function (minBinIndex, maxBinIndex) {
+    console.log('_selectRange(', minBinIndex, ', ', maxBinIndex, ')');
+    var loPosition = this._getBarPosition(minBinIndex);
+    var hiPosition = this._getBarPosition(maxBinIndex);
+
     this.chart.select('.Brush').transition()
       .duration(this.brush.empty() ? 0 : 150)
       .call(this.brush.extent([loPosition, hiPosition]))
@@ -902,13 +920,13 @@ module.exports = cdb.core.View.extend({
   },
 
   _onBrushEnd: function () {
-    console.log('AKI HAY QUE IMPLEMENTAR QUE SE MUEVAN EL MIN MAX');
     var data = this.model.get('data');
     var brush = this.brush;
     var loPosition, hiPosition;
 
     var loBarIndex = this._getLoBarIndex();
     var hiBarIndex = this._getHiBarIndex();
+    //console.log('_onBrushEnd lo:', loBarIndex, ' hi:', hiBarIndex);
 
     this.model.set({ dragging: false });
 
@@ -919,6 +937,7 @@ module.exports = cdb.core.View.extend({
 
       return;
     } else {
+      // AKI. Igual hay que borrar estas loPosition y hiPosition
       loPosition = this._getBarPosition(loBarIndex);
       hiPosition = this._getBarPosition(hiBarIndex);
 
@@ -936,13 +955,20 @@ module.exports = cdb.core.View.extend({
           hiBarIndex = hiBarIndex + 1;
         }
       }
-      this.model.set({ lo_index: loBarIndex, hi_index: hiBarIndex });
+
+      this.model.set({
+        min: this._getValueFromBinIndex(loBarIndex),
+        max: this._getValueFromBinIndex(hiBarIndex)
+      });
     }
 
     // click in non animated histogram
     if (d3.event.sourceEvent && loPosition === undefined && hiPosition === undefined) {
       var barIndex = this._getBarIndex();
-      this.model.set({ lo_index: barIndex, hi_index: barIndex + 1 });
+      this.model.set({
+        min: this._getValueFromBinIndex(barIndex),
+        max: this._getValueFromBinIndex(barIndex + 1)
+      });
     }
 
     this._setupFillColor();
@@ -1213,17 +1239,53 @@ module.exports = cdb.core.View.extend({
     }
     var dataBin = data[index];
     if (dataBin) {
-      result = fromStart ? dataBin.start : dataBin.next;
+      result = fromStart ? dataBin.start : dataBin.next || dataBin.end;
     }
 
     return result;
   },
 
   _getIndexFromValue: function (value) {
-    var index = _.findIndex(this.model.get('data'), function (bin) {
-      return bin.start <= value && value <= bin.end;
+    var data = this.model.get('data');
+    var limits = this._getDataLimits(data);
+    if (value < limits.minValue) {
+      return Number.MIN_SAFE_INTEGER;
+    }
+    if (value > limits.maxValue) {
+      return Number.MAX_SAFE_INTEGER;
+    }
+
+    var index = null;
+    if (this._isTimeSeries()) {
+      index = _.findIndex(data, function (bin) {
+        return bin.start <= value && value < bin.end;
+      });
+      return index;
+    } else {
+      _.each(data, function (bin, i) {
+        if (bin.start <= value && value < bin.end) {
+          index = i;
+        } else if (value === bin.end) {
+          index = i + 1;
+        }
+      });
+      return index;
+    }
+  },
+
+  _getDataLimits: function (data) {
+    return _.reduce(data, function (memo, bin) {
+      if (_.isFinite(bin.start) && (bin.start < memo.minValue || _.isUndefined(memo.minValue))) {
+        memo.minValue = bin.start;
+      }
+      if (_.isFinite(bin.end) && (bin.end > memo.maxValue || _.isUndefined(memo.maxValue))) {
+        memo.maxValue = bin.end;
+      }
+      return memo;
+    }, {
+      minValue: undefined,
+      maxValue: undefined
     });
-    return index;
   },
 
   _getMaxFromData: function () {
@@ -1607,8 +1669,11 @@ module.exports = cdb.core.View.extend({
   },
 
   _hasFilterApplied: function () {
-    console.log('AKI HAY QUE IMPLEMENTAR QUE LO CALCULE CON MIN MAX');
-    return this.model.get('lo_index') != null && this.model.get('hi_index') != null;
+    return _.isFinite(this.model.get('min')) && _.isFinite(this.model.get('max'));
+  },
+
+  _isHistogram: function () {
+    return this.options.type === 'histogram';
   },
 
   _isTimeSeries: function () {

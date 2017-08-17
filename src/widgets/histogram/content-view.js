@@ -84,7 +84,7 @@ module.exports = cdb.core.View.extend({
     if (this.model.get('hasInitialState') === true) {
       this._setInitialState();
     } else {
-      this.model.bind('change:hasInitialState', this._setInitialState, this);
+      this.listenToOnce(this.model, 'change:hasInitialState', this._setInitialState);
     }
   },
 
@@ -122,41 +122,23 @@ module.exports = cdb.core.View.extend({
   },
 
   _setupRange: function (data, min, max, updateCallback) {
-    var lo = 0;
-    var hi = data.length;
-    var startMin;
-    var startMax;
-
-    if (_.isNumber(min)) {
-      startMin = _.findWhere(data, {start: min});
-      lo = startMin ? startMin.bin : 0;
-    }
-
-    if (_.isNumber(max)) {
-      startMax = _.findWhere(data, {end: max});
-      hi = startMax ? startMax.bin + 1 : data.length;
-    }
-
-    if (lo && lo !== 0 || hi && hi !== data.length) {
-      this.filter.setRange(
-        data[lo].start,
-        data[hi - 1].end
-      );
+    if (_.isFinite(min) || _.isFinite(max)) {
+      this.filter.setRange(min, max);
       this._onChangeFilterEnabled();
-      this.histogramChartView.selectRange(lo, hi);
+      this.histogramChartView.selectRange(min, max);
     }
 
-    updateCallback && updateCallback(lo, hi);
+    updateCallback && updateCallback(min, max);
   },
 
   _setInitialRange: function () {
     var data = this._dataviewModel.getData();
     var min = this.model.get('min');
     var max = this.model.get('max');
-    var filterEnabled = (min !== undefined || max !== undefined);
+    var filterEnabled = (_.isFinite(min) || _.isFinite(max));
 
-    this._setupRange(data, min, max, function (lo, hi) {
-      this.model.set({ filter_enabled: filterEnabled, lo_index: lo, hi_index: hi });
+    this._setupRange(data, min, max, function (min, max) {
+      this.model.set({ filter_enabled: filterEnabled, min: min, max: max });
       this._dataviewModel.bind('change:data', this._onHistogramDataChanged, this);
       this._initStateApplied = true;
 
@@ -182,10 +164,7 @@ module.exports = cdb.core.View.extend({
   },
 
   _hasRange: function () {
-    var min = this.model.get('min');
-    var max = this.model.get('max');
-
-    return (min != null || max != null);
+    return (_.isFinite(this.model.get('min')) || _.isFinite(this.model.get('max')));
   },
 
   _onHistogramDataChanged: function () {
@@ -261,7 +240,7 @@ module.exports = cdb.core.View.extend({
   _unsetRange: function () {
     this.unsettingRange = false;
     this.histogramChartView.replaceData(this._dataviewModel.getData());
-    this.model.set({ lo_index: null, hi_index: null });
+    this.model.set({ min: null, max: null, lo_index: null, hi_index: null });
 
     if (!this._isZoomed()) {
       this.histogramChartView.showShadowBars();
@@ -378,16 +357,22 @@ module.exports = cdb.core.View.extend({
     this._applyBrushFilter(data, loBarIndex, hiBarIndex);
   },
 
-  _onBrushEnd: function (loBarIndex, hiBarIndex) {
-    if (this._isZoomed()) {
-      this._onBrushEndFiltered(loBarIndex, hiBarIndex);
+  _onBrushEnd: function (min, max) {
+    console.log('_onBrushEnd handler');
+    if (_.isUndefined(min) && _.isUndefined(max)) {
+      this._resetWidget();
+    } else if (this._isZoomed()) {
+      this._onBrushEndFiltered(min, max);
     } else {
-      this._onBrushEndUnfiltered(loBarIndex, hiBarIndex);
+      this._onBrushEndUnfiltered(min, max);
     }
   },
 
-  _onBrushEndFiltered: function (loBarIndex, hiBarIndex) {
+  _onBrushEndFiltered: function (min, max) {
     var data = this._filteredData;
+    var loBarIndex = this._getIndexFromValue(data, min);
+    var hiBarIndex = this._getIndexFromValue(data, max);
+
     if ((!data || !data.length) || (this.model.get('zlo_index') === loBarIndex && this.model.get('zhi_index') === hiBarIndex)) {
       return;
     }
@@ -395,29 +380,24 @@ module.exports = cdb.core.View.extend({
     this._numberOfFilters = 2;
     this.lockedByUser = true;
     this.model.set({filter_enabled: true, zlo_index: loBarIndex, zhi_index: hiBarIndex});
-    this._applyBrushFilter(data, loBarIndex, hiBarIndex);
+    this._applyBrushFilter(data, min, max);
   },
 
-  _onBrushEndUnfiltered: function (loBarIndex, hiBarIndex) {
+  _onBrushEndUnfiltered: function (min, max) {
     var data = this._dataviewModel.getData();
-    if ((!data || !data.length) || (this.model.get('lo_index') === loBarIndex && this.model.get('hi_index') === hiBarIndex)) {
+    if (!data || !data.length) {
       return;
     }
+
     this._numberOfFilters = 1;
-    this.model.set({filter_enabled: true, zoom_enabled: true, lo_index: loBarIndex, hi_index: hiBarIndex});
-    this._applyBrushFilter(data, loBarIndex, hiBarIndex);
+    this.model.set({ filter_enabled: true, zoom_enabled: true, min: min, max: max });
+    this._applyBrushFilter(data, min, max);
   },
 
-  _applyBrushFilter: function (data, loBarIndex, hiBarIndex) {
-    if (loBarIndex !== hiBarIndex && loBarIndex >= 0 && loBarIndex < data.length && (hiBarIndex - 1) >= 0 && (hiBarIndex - 1) < data.length) {
-      this.filter.setRange(
-        data[loBarIndex].start,
-        data[hiBarIndex - 1].end
-      );
-      this._updateStats();
-    } else {
-      console.error('Error accessing array bounds', loBarIndex, hiBarIndex, data);
-    }
+  _applyBrushFilter: function (data, min, max) {
+    console.log('_applyBrushFilter(', min, ', ', max, ') filter [', this.filter.get('min'), ', ', this.filter.get('max'), ']');
+    this.filter.setRange(min, max);
+    this._updateStats();
   },
 
   _onChangeFilterEnabled: function () {
@@ -469,6 +449,7 @@ module.exports = cdb.core.View.extend({
   },
 
   _onChangeTotal: function () {
+    console.log('_onChangeTotal', this.model.get('total'));
     this._changeHeaderValue('.js-val', 'total', 'SELECTED');
   },
 
@@ -508,21 +489,19 @@ module.exports = cdb.core.View.extend({
     } else if (this._numberOfFilters === 1) {
       min = this.model.get('min');
       max = this.model.get('max');
-      loBarIndex = this.model.get('lo_index');
-      hiBarIndex = this.model.get('hi_index');
     }
 
     if (data.length > 0) {
-      if (!_.isNumber(min) && !_.isNumber(loBarIndex)) {
+      if (!_.isNumber(min)) {
         loBarIndex = 0;
-      } else if (_.isNumber(min) && !_.isNumber(loBarIndex)) {
+      } else if (_.isNumber(min)) {
         startMin = _.findWhere(data, {start: min});
         loBarIndex = startMin && startMin.bin || 0;
       }
 
-      if (!_.isNumber(max) && !_.isNumber(hiBarIndex)) {
+      if (!_.isNumber(max)) {
         hiBarIndex = data.length;
-      } else if (_.isNumber(max) && !_.isNumber(hiBarIndex)) {
+      } else if (_.isNumber(max)) {
         startMax = _.findWhere(data, {end: max});
         hiBarIndex = startMax && startMax.bin + 1 || data.length;
       }
@@ -538,6 +517,7 @@ module.exports = cdb.core.View.extend({
   },
 
   _updateStats: function () {
+    console.log('_updateStats');
     if (!this._initStateApplied) return;
     var data;
 
@@ -553,6 +533,7 @@ module.exports = cdb.core.View.extend({
 
     var nulls = this._dataviewModel.get('nulls');
     var bars = this._calculateBars(data);
+    console.log('_updateStats ', bars.loBarIndex, bars.hiBarIndex);
     var loBarIndex = bars.loBarIndex;
     var hiBarIndex = bars.hiBarIndex;
     var sum, avg, min, max;
@@ -579,7 +560,7 @@ module.exports = cdb.core.View.extend({
       attrs = _.extend(
         { total: sum, nulls: nulls, avg: avg },
         attrs);
-
+      console.log('this.model.set(', JSON.stringify(attrs), ')');
       this.model.set(attrs);
     }
   },
@@ -601,9 +582,11 @@ module.exports = cdb.core.View.extend({
   },
 
   _calcSum: function (data, start, end) {
-    return _.reduce(data.slice(start, end), function (memo, d) {
-      return d.freq + memo;
+    var sum = _.reduce(data.slice(start, end), function (memo, d) {
+      var freq = _.isFinite(d.freq) ? d.freq : 0;
+      return memo + freq;
     }, 0);
+    return sum;
   },
 
   _onChangeZoomed: function () {
@@ -656,5 +639,18 @@ module.exports = cdb.core.View.extend({
     this.miniHistogramChartView.hide();
     this._clearTooltip();
     this._updateStats();
+  },
+
+  _getIndexFromValue: function (data, value) {
+    var index = null;
+    _.each(data, function (bin, i) {
+      if (bin.start <= value && value < bin.end) {
+        index = i;
+      } else if (value === bin.end) {
+        index = i + 1;
+      }
+    });
+    return index;
+
   }
 });

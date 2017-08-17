@@ -34,29 +34,16 @@ module.exports = WidgetModel.extend({
 
   getState: function () {
     var state = WidgetModel.prototype.getState.call(this);
-    var start = this.dataviewModel.get('start');
-    var end = this.dataviewModel.get('end');
     var min = this.get('min');
     var max = this.get('max');
 
-    var checkRoughEqual = function (a, b) {
-      if (_.isNumber(a) && _.isNumber(b) && (a !== b) && Math.abs(a - b) > Math.abs(start - end) * 0.01) {
-        return true;
-      }
-      return false;
-    };
+    _.isFinite(min)
+      ? state.min = min
+      : delete state.min;
 
-    if (checkRoughEqual(start, min)) {
-      state.min = min;
-    } else {
-      delete state.min;
-    }
-
-    if (checkRoughEqual(end, max)) {
-      state.max = max;
-    } else {
-      delete state.max;
-    }
+    _.isFinite(max)
+      ? state.max = max
+      : delete state.max;
 
     if (this.get('zoomed') === true) {
       state.zoomed = true;
@@ -64,5 +51,4 @@ module.exports = WidgetModel.extend({
 
     return state;
   }
-
 });
