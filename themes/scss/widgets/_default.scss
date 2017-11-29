@@ -16,8 +16,10 @@
   width: $desktopLayout;
   margin-bottom: 2px;
   // Due to line-heights, better to substract some pixels in the top
-  padding: ($sMargin-section - 4) 0;
   box-sizing: border-box;
+}
+.CDB-Widget-body {
+  padding: ($sMargin-section - 4) 0;
 }
 .CDB-Widget .CDB-Loader {
   height: 1px;
@@ -71,16 +73,25 @@
   display: none;
 }
 
+.CDB-Widget-body.is-hidden {
+  display: none;
+}
+
 .CDB-Widget-options {
   margin-right: -7px;
 }
 
 .CDB-Chart--histogram {
   margin-top: $baseSize * 3;
+
+  @media screen and (-ms-high-contrast: active), (-ms-high-contrast: none) {
+    transform: rotateZ(-0.001deg);
+  }
 }
 
 .CDB-Widget-content--histogram,
-.CDB-Widget-content--timeSeries {
+.CDB-Widget-content--timeSeries,
+.CDB-Widget-content--torqueTimeSeries, {
   touch-action: none;
   -ms-touch-action: none;
 }
@@ -123,6 +134,9 @@
     max-height: auto;
     margin-bottom: 2px;
   }
+  .CDB-Widget-timeSeriesTimeInfo {
+    display: none;
+  }
   .CDB-Widget-content.CDB-Widget-content--timeSeries {
     width: 100%;
   }
@@ -153,5 +167,8 @@
   }
   .CDB-Widget-list {
     max-width: 314px;
+  }
+  .CDB-Chart--histogram {
+    margin-top: 12px;
   }
 }

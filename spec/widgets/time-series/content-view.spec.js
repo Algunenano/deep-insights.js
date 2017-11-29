@@ -6,12 +6,14 @@ var HistogramChartView = require('../../../src/widgets/histogram/chart');
 describe('widgets/time-series/content-view', function () {
   beforeEach(function () {
     var vis = specHelper.createDefaultVis();
-    this.dataviewModel = vis.dataviews.createHistogramModel(vis.map.layers.first(), {
+    this.layerModel = vis.map.layers.first();
+    this.layerModel.set('layer_name', '< & ><h1>Hello</h1>');
+    var source = vis.analysis.findNodeById('a0');
+    this.dataviewModel = vis.dataviews.createHistogramModel({
       column: 'col',
-      source: {
-        id: 'a0'
-      }
+      source: source
     });
+
     this.originalData = this.dataviewModel.getUnfilteredDataModel();
     this.originalData.set({
       data: [{ bin: 10 }, { bin: 3 }],
@@ -26,7 +28,8 @@ describe('widgets/time-series/content-view', function () {
     var widgetModel = new WidgetModel({
       show_source: true
     }, {
-      dataviewModel: this.dataviewModel
+      dataviewModel: this.dataviewModel,
+      layerModel: this.layerModel
     });
 
     spyOn(HistogramChartView.prototype, '_setupFillColor').and.returnValue('red');
@@ -75,12 +78,14 @@ describe('widgets/time-series/content-view', function () {
 
       it('should render chart', function () {
         this.view.render();
+
         expect(this.view.$('.js-header').length).toBe(1);
         expect(this.view.$('.js-content').length).toBe(1);
         expect(this.view._histogramView).toBeDefined();
         expect(this.view._headerView).toBeDefined();
         expect(this.view._dropdownView).toBeDefined();
         expect(this.view.$('.js-header .CDB-Widget-info').length).toBe(1);
+        expect(this.view.$('.u-altTextColor').html()).toBe('&lt; &amp; &gt;&lt;h1&gt;Hello&lt;/h1&gt;');
         expect(this.view.render().$el.html()).toContain('<svg');
       });
     });
@@ -88,13 +93,20 @@ describe('widgets/time-series/content-view', function () {
 
   describe('.initBinds', function () {
     it('should hook up events properly', function () {
-      this.view._dataviewModel.off();
+      this.view.model.off();
       spyOn(this.view, 'render');
 
       this.view._initBinds();
 
       // DataviewModel events
-      this.view._dataviewModel.trigger('change:data');
+      this.view.model.trigger('change:hasInitialState');
+      expect(this.view.render).toHaveBeenCalled();
+    });
+
+    it('should render the widget when the layer name changes', function () {
+      spyOn(this.view, 'render');
+      this.view._initBinds();
+      this.layerModel.set('layer_name', 'Hello');
       expect(this.view.render).toHaveBeenCalled();
     });
   });

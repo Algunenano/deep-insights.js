@@ -7,6 +7,7 @@ var TorqueHeaderView = require('./torque-header-view');
 var DropdownView = require('../dropdown/widget-dropdown-view');
 var layerColors = require('../../util/layer-colors');
 var analyses = require('../../data/analyses');
+var escapeHTML = require('../../util/escape-html');
 
 /**
  * Widget content view for a Torque time-series
@@ -15,7 +16,11 @@ module.exports = cdb.core.View.extend({
   className: 'CDB-Widget-body CDB-Widget-body--timeSeries',
 
   initialize: function () {
+    if (!this.model.dataviewModel) throw new Error('dataviewModel is required');
+    if (!this.model.layerModel) throw new Error('layerModel is required');
+
     this._dataviewModel = this.model.dataviewModel;
+    this._layerModel = this.model.layerModel;
     this._originalData = this._dataviewModel.getUnfilteredDataModel();
     this._selectedAmount = 0;
     this._initBinds();
@@ -28,7 +33,7 @@ module.exports = cdb.core.View.extend({
     var letter = layerColors.letter(sourceId);
     var sourceColor = layerColors.getColorForLetter(letter);
     var sourceType = this._dataviewModel.getSourceType() || '';
-    var layerName = this._dataviewModel.getLayerName() || '';
+    var layerName = this._layerModel.get('layer_name') || '';
 
     if (this._isDataEmpty()) {
       this.$el.html(placeholderTemplate({
@@ -40,7 +45,7 @@ module.exports = cdb.core.View.extend({
         sourceType: analyses.title(sourceType),
         showSource: this.model.get('show_source') && letter !== '',
         sourceColor: sourceColor,
-        layerName: layerName
+        layerName: escapeHTML(layerName)
       }));
       this._createHeaderView();
       this._createTorqueHistogramView();
@@ -58,7 +63,7 @@ module.exports = cdb.core.View.extend({
     this._headerView = new TorqueHeaderView({
       el: this.$('.js-torque-header'),
       dataviewModel: this._dataviewModel,
-      torqueLayerModel: this._dataviewModel.layer,
+      torqueLayerModel: this._layerModel,
       timeSeriesModel: this.model,
       selectedAmount: this._selectedAmount
     });
@@ -76,7 +81,8 @@ module.exports = cdb.core.View.extend({
       timeSeriesModel: this.model,
       dataviewModel: this._dataviewModel,
       rangeFilter: this._dataviewModel.filter,
-      torqueLayerModel: this._dataviewModel.layer,
+      torqueLayerModel: this._layerModel,
+      layerModel: this._layerModel,
       displayShadowBars: !this.model.get('normalized'),
       normalized: !!this.model.get('normalized')
     });
@@ -94,6 +100,7 @@ module.exports = cdb.core.View.extend({
       target: '.js-actions',
       container: this.$('.js-header'),
       flags: {
+        localTimezone: this._dataviewModel.getColumnType() === 'date',
         normalizeHistogram: !!this.model.get('normalized'),
         canCollapse: false
       }
@@ -102,12 +109,13 @@ module.exports = cdb.core.View.extend({
   },
 
   _initBinds: function () {
-    this._originalData.once('change:data', this._onOriginalDataChange, this);
-    this.add_related_model(this._originalData);
+    this.listenTo(this._originalData, 'change:data', this._onOriginalDataChange);
 
-    this._dataviewModel.once('change:data', this.render, this);
-    this._dataviewModel.bind('change:bins', this._onChangeBins, this);
-    this.add_related_model(this._dataviewModel);
+    this.listenTo(this._dataviewModel, 'change:data', this.render);
+    this.listenTo(this._dataviewModel, 'change:bins', this._onChangeBins);
+
+    this.listenTo(this._layerModel, 'change:layer_name', this.render);
+    this.add_related_model(this._layerModel);
   },
 
   _isDataEmpty: function () {

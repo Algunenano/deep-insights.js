@@ -7,18 +7,20 @@ describe('widgets/formula/content-view', function () {
   beforeEach(function () {
     AnimateValues.prototype.animateValue = function () {};
     var vis = specHelper.createDefaultVis();
-    this.dataviewModel = vis.dataviews.createFormulaModel(vis.map.layers.first(), {
+    this.layerModel = vis.map.layers.first();
+    this.layerModel.set('layer_name', '< & ><h1>Hello</h1>');
+    var source = vis.analysis.findNodeById('a0');
+    this.dataviewModel = vis.dataviews.createFormulaModel({
       column: 'col',
-      source: {
-        id: 'a0'
-      },
+      source: source,
       operation: 'avg'
     });
     this.model = new WidgetModel({
       title: 'Max population',
       hasInitialState: true
     }, {
-      dataviewModel: this.dataviewModel
+      dataviewModel: this.dataviewModel,
+      layerModel: this.layerModel
     });
     this.view = new FormulaWidgetContent({
       model: this.model
@@ -65,5 +67,13 @@ describe('widgets/formula/content-view', function () {
     this.model.set('show_source', true);
     this.view.render();
     expect(this.view.$('.CDB-Widget-info').length).toBe(1);
+    expect(this.view.$('.u-altTextColor').html()).toBe('&lt; &amp; &gt;&lt;h1&gt;Hello&lt;/h1&gt;');
+  });
+
+  it('should render the widget when the layer name changes', function () {
+    spyOn(this.view, 'render');
+    this.view._initBinds();
+    this.layerModel.set('layer_name', 'Hello');
+    expect(this.view.render).toHaveBeenCalled();
   });
 });

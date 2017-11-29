@@ -6,17 +6,19 @@ var CategoryContentView = require('../../../src/widgets/category/content-view');
 describe('widgets/category/content-view', function () {
   beforeEach(function () {
     var vis = specHelper.createDefaultVis();
-    this.dataviewModel = vis.dataviews.createCategoryModel(vis.map.layers.first(), {
+    var source = vis.analysis.findNodeById('a0');
+    this.dataviewModel = vis.dataviews.createCategoryModel({
       column: 'col',
-      source: {
-        id: 'a0'
-      }
+      source: source
     });
+    this.layerModel = vis.map.layers.first();
+    this.layerModel.set('layer_name', '< & ><h1>Hello</h1>');
     this.model = new CategoryWidgetModel({
       title: 'Categories of something',
       hasInitialState: true
     }, {
-      dataviewModel: this.dataviewModel
+      dataviewModel: this.dataviewModel,
+      layerModel: this.layerModel
     });
 
     this.view = new CategoryContentView({
@@ -35,6 +37,14 @@ describe('widgets/category/content-view', function () {
     this.model.set('show_source', true);
     this.view.render();
     expect(this.view.$('.CDB-Widget-info').length).toBe(2);
+    expect(this.view.$('.u-altTextColor').html()).toBe('&lt; &amp; &gt;&lt;h1&gt;Hello&lt;/h1&gt;');
+  });
+
+  it('should render the widget when the layer name changes', function () {
+    spyOn(this.view, 'render');
+    this.view._initBinds();
+    this.layerModel.set('layer_name', 'Hello');
+    expect(this.view.render).toHaveBeenCalled();
   });
 
   afterEach(function () {

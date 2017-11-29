@@ -1,5 +1,6 @@
 var _ = require('underscore');
 var d3 = require('d3');
+var $ = require('jquery');
 var cdb = require('cartodb.js');
 var formatter = require('../../formatter');
 var template = require('./template.tpl');
@@ -8,6 +9,8 @@ var animationTemplate = require('./animation-template.tpl');
 var AnimateValues = require('../animate-values.js');
 var layerColors = require('../../util/layer-colors');
 var analyses = require('../../data/analyses');
+var escapeHTML = require('../../util/escape-html');
+var TooltipView = require('../widget-tooltip-view');
 
 /**
  * Default widget content view:
@@ -17,6 +20,7 @@ module.exports = cdb.core.View.extend({
 
   initialize: function () {
     this._dataviewModel = this.model.dataviewModel;
+    this._layerModel = this.model.layerModel;
 
     if (this.model.get('hasInitialState') === true) {
       this._initBinds();
@@ -43,7 +47,7 @@ module.exports = cdb.core.View.extend({
       return 0;
     };
 
-    var nulls = !_.isUndefined(this._dataviewModel.get('nulls')) && formatter.formatNumber(this._dataviewModel.get('nulls')) || '-';
+    var nulls = (!_.isUndefined(this._dataviewModel.get('nulls')) && formatter.formatNumber(this._dataviewModel.get('nulls'))) || '-';
     var isCollapsed = this.model.get('collapsed');
 
     var prefix = this.model.get('prefix');
@@ -53,7 +57,7 @@ module.exports = cdb.core.View.extend({
     var letter = layerColors.letter(sourceId);
     var sourceColor = layerColors.getColorForLetter(letter);
     var sourceType = this._dataviewModel.getSourceType() || '';
-    var layerName = this._dataviewModel.getLayerName() || '';
+    var layerName = this._layerModel.get('layer_name') || '';
 
     this.$el.html(
       template({
@@ -71,7 +75,7 @@ module.exports = cdb.core.View.extend({
         suffix: suffix,
         isCollapsed: isCollapsed,
         sourceColor: sourceColor,
-        layerName: layerName
+        layerName: escapeHTML(layerName)
       })
     );
 
@@ -105,6 +109,9 @@ module.exports = cdb.core.View.extend({
     this.model.bind('change:title change:description change:collapsed change:prefix change:suffix', this.render, this);
     this._dataviewModel.bind('change:data', this.render, this);
     this.add_related_model(this._dataviewModel);
+
+    this._layerModel.bind('change:layer_name', this.render, this);
+    this.add_related_model(this._layerModel);
   },
 
   _initViews: function () {
@@ -113,8 +120,13 @@ module.exports = cdb.core.View.extend({
       target: '.js-actions',
       container: this.$('.js-header')
     });
-
     this.addView(dropdown);
-  }
 
+    var actionsTooltip = new TooltipView({
+      context: this.$el,
+      target: '.js-actions'
+    });
+    $('body').append(actionsTooltip.render().el);
+    this.addView(actionsTooltip);
+  }
 });

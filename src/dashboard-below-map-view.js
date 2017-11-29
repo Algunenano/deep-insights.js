@@ -4,6 +4,8 @@ var WidgetViewFactory = require('./widgets/widget-view-factory');
 var TimeSeriesContentView = require('./widgets/time-series/content-view');
 var TorqueTimeSeriesContentView = require('./widgets/time-series/torque-content-view');
 
+var TIME_SERIES_TYPE = 'time-series';
+
 module.exports = cdb.core.View.extend({
   className: 'CDB-Dashboard-belowMap',
 
@@ -12,9 +14,10 @@ module.exports = cdb.core.View.extend({
       {
         // same type as below, but also check if the associated layer is a a torque layer
         match: function (widgetModel) {
-          if (widgetModel.get('type') === 'time-series') {
-            var d = widgetModel.dataviewModel;
-            return d && d.layer.get('type') === 'torque';
+          if (widgetModel.get('type') === TIME_SERIES_TYPE) {
+            var dataviewModel = widgetModel.dataviewModel;
+            var layerModel = widgetModel.layerModel;
+            return dataviewModel && layerModel.get('type') === 'torque' && widgetModel.get('animated') === true;
           }
           return false;
         },
@@ -28,7 +31,7 @@ module.exports = cdb.core.View.extend({
           return attrs;
         }
       }, {
-        type: 'time-series',
+        type: TIME_SERIES_TYPE,
         createContentView: function (widgetModel) {
           return new TimeSeriesContentView({
             model: widgetModel
@@ -71,7 +74,9 @@ module.exports = cdb.core.View.extend({
   },
 
   _onWidgetsChange: function () {
+    this._widgets.each(function (widget) {
+      widget.forceResize();
+    });
     this._toggleVisiblity();
   }
-
 });

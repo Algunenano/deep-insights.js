@@ -2,6 +2,9 @@ var _ = require('underscore');
 var cdb = require('cartodb.js');
 var AutoStylerFactory = require('./auto-style/factory');
 
+var TIME_SERIES_TYPE = 'time-series';
+var HISTOGRAM_TYPE = 'histogram';
+
 /**
  * Default widget model
  *
@@ -22,19 +25,23 @@ module.exports = cdb.core.Model.extend({
 
   initialize: function (attrs, models, opts) {
     opts = opts || {};
+    if (!models.dataviewModel) throw new Error('dataviewModel is required.');
+    if (!models.layerModel) throw new Error('layerModel is required.');
+
     this.dataviewModel = models.dataviewModel;
+    this.layerModel = models.layerModel;
 
     // Autostyle could be disabled initially if the styles have an aggregation
     // If no option, autoStyleEnabled by default
     this._autoStyleEnabledWhenCreated = opts.autoStyleEnabled === undefined ? true : opts.autoStyleEnabled;
 
     this.activeAutoStyler();
-    this.bind('change:style', this.activeAutoStyler, this);
+    this.listenTo(this, 'change:style', this.activeAutoStyler);
   },
 
   activeAutoStyler: function () {
     if (this.isAutoStyleEnabled() && !this.autoStyler) {
-      this.autoStyler = AutoStylerFactory.get(this.dataviewModel, this.get('style'));
+      this.autoStyler = AutoStylerFactory.get(this.dataviewModel, this.layerModel, this.get('style'));
     }
   },
 
@@ -92,8 +99,8 @@ module.exports = cdb.core.Model.extend({
     var widgetColor = widgetStyle && widgetStyle.definition &&
       widgetStyle.definition.color &&
       widgetStyle.definition.color.fixed;
-    var widgetColorChanged = widgetStyle && widgetStyle.widget_color_changed ||
-      widgetStyle && !widgetStyle.widget_color_changed && widgetColor !== '#9DE0AD';
+    var widgetColorChanged = (widgetStyle && widgetStyle.widget_color_changed) ||
+      (widgetStyle && !widgetStyle.widget_color_changed && widgetColor !== '#9DE0AD');
 
     return widgetColorChanged && widgetColor;
   },
@@ -132,7 +139,7 @@ module.exports = cdb.core.Model.extend({
     if (!this.isAutoStyleEnabled()) return;
     if (!this.dataForAutoStyle()) return;
 
-    var layer = this.dataviewModel.layer;
+    var layer = this.layerModel;
     var initialStyle = layer.get('cartocss');
     if (!initialStyle && layer.get('meta')) {
       initialStyle = layer.get('meta').cartocss;
@@ -150,20 +157,20 @@ module.exports = cdb.core.Model.extend({
 
   reapplyAutoStyle: function () {
     var style = this.autoStyler.getStyle();
-    this.dataviewModel.layer.set('cartocss', style);
+    this.layerModel.set('cartocss', style);
     this.set('autoStyle', true);
   },
 
   cancelAutoStyle: function (noRestore) {
     if (!noRestore) {
-      this.dataviewModel.layer.restoreCartoCSS();
+      this.layerModel.restoreCartoCSS();
     }
     this.set('autoStyle', false);
   },
 
   getAutoStyle: function () {
     var style = this.get('style');
-    var layerModel = this.dataviewModel.layer;
+    var layerModel = this.layerModel;
     var cartocss = layerModel.get('cartocss') || (layerModel.get('meta') && layerModel.get('meta').cartocss);
 
     if (this.isAutoStyleEnabled() && this.autoStyler) {
@@ -217,5 +224,13 @@ module.exports = cdb.core.Model.extend({
       }
     }
     return state;
+  },
+
+  forceResize: function () {
+    var type = this.get('type');
+    if (type === TIME_SERIES_TYPE ||
+        type === HISTOGRAM_TYPE) {
+      this.trigger('forceResize');
+    }
   }
 });

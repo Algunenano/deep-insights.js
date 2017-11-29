@@ -1,26 +1,30 @@
-var $ = require('jquery');
 var cdb = require('cartodb.js');
+var $ = require('jquery');
 var HistogramChartView = require('../histogram/chart');
+var viewportUtils = require('../../viewport-utils');
+var TooltipView = require('../widget-tooltip-view');
 
 /**
  * Time-series histogram view.
  */
 module.exports = cdb.core.View.extend({
+  className: 'CDB-Chart--histogram',
+
   defaults: {
-    mobileThreshold: 960, // px; should match CSS media-query
     histogramChartHeight: 48 + // inline bars height
       4 + // bottom margin
       16 + // labels
       4, // margins
-    histogramChartMobileHeight: 20 + // inline bars height (no bottom labels)
-      4 // margins
+    histogramChartMobileHeight: 16 // inline bars height (no bottom labels)
   },
 
-  className: 'CDB-Chart--histogram',
-
   initialize: function () {
+    if (!this.options.dataviewModel) throw new Error('dataviewModel is required');
+    if (!this.options.layerModel) throw new Error('layerModel is required');
+
     this._timeSeriesModel = this.options.timeSeriesModel;
     this._dataviewModel = this.options.dataviewModel;
+    this._layerModel = this.options.layerModel;
     this._rangeFilter = this.options.rangeFilter;
     this._originalData = this._dataviewModel.getUnfilteredDataModel();
     this._initBinds();
@@ -29,6 +33,7 @@ module.exports = cdb.core.View.extend({
   render: function () {
     this.clearSubViews();
     this._createHistogramView();
+    this._createTooltipView();
     return this;
   },
 
@@ -38,14 +43,25 @@ module.exports = cdb.core.View.extend({
 
   resetFilter: function () {
     this._rangeFilter.unsetRange();
-    this._resetFilterInDI();
   },
 
   _initBinds: function () {
     this.listenTo(this._dataviewModel, 'change:data', this._onChangeData, this);
     this.listenTo(this._dataviewModel, 'change:column', this.resetFilter, this);
     this.listenTo(this._timeSeriesModel, 'change:normalized', this._onNormalizedChanged);
+    this.listenTo(this._timeSeriesModel, 'change:local_timezone', this._onChangeLocalTimezone);
+    this.listenTo(this._timeSeriesModel, 'forceResize', this._onForceResize);
     this.listenTo(this._rangeFilter, 'change', this._onFilterChanged);
+  },
+
+  _createTooltipView: function () {
+    var tooltip = new TooltipView({
+      context: this._chartView,
+      event: 'hover'
+    });
+
+    $('body').append(tooltip.render().el);
+    this.addView(tooltip);
   },
 
   _createHistogramView: function () {
@@ -65,24 +81,26 @@ module.exports = cdb.core.View.extend({
       chartBarColor: this._timeSeriesModel.getWidgetColor() || '#F2CC8F',
       animationSpeed: 100,
       margin: {
-        top: 4,
+        top: this._getMarginTop(),
         right: 4,
         bottom: 4,
         left: this._getMarginLeft()
       },
       hasHandles: true,
-      handleWidth: 10,
+      handleWidth: 8,
       hasAxisTip: true,
       animationBarDelay: function (d, i) {
         return (i * 3);
       },
       height: this.defaults.histogramChartHeight,
       dataviewModel: this._dataviewModel,
+      layerModel: this._layerModel,
       data: this._dataviewModel.getData(),
       originalData: this._originalData,
       displayShadowBars: !this._timeSeriesModel.get('normalized'),
       normalized: !!this._timeSeriesModel.get('normalized'),
-      widgetModel: this._timeSeriesModel
+      widgetModel: this._timeSeriesModel,
+      local_timezone: !!this._timeSeriesModel.get('local_timezone')
     });
   },
 
@@ -108,13 +126,12 @@ module.exports = cdb.core.View.extend({
   },
 
   _onChangeChartWidth: function () {
-    var isMobileSize = $(window).width() < this.defaults.mobileThreshold;
+    var isTablet = viewportUtils.isTabletViewport();
+    this._chartView.toggleLabels(!isTablet);
 
-    this._chartView.toggleLabels(!isMobileSize);
+    var height = isTablet
+      ? this.defaults.histogramChartMobileHeight : this.defaults.histogramChartHeight;
 
-    var height = isMobileSize
-      ? this.defaults.histogramChartMobileHeight
-      : this.defaults.histogramChartHeight;
     this._chartView.model.set('height', height);
   },
 
@@ -124,13 +141,21 @@ module.exports = cdb.core.View.extend({
     }
   },
 
+  _onChangeLocalTimezone: function () {
+    this._dataviewModel.set('localTimezone', this._timeSeriesModel.get('local_timezone'));
+  },
+
+  _onForceResize: function () {
+    this._chartView.forceResize();
+  },
+
   _resetFilterInDI: function () {
     this._timeSeriesModel.set({
       min: undefined,
       max: undefined,
       lo_index: undefined,
       hi_index: undefined
-    }, { silent: true });
+    });
     this._chartView.removeSelection();
   },
 
@@ -142,5 +167,9 @@ module.exports = cdb.core.View.extend({
 
   _getMarginLeft: function () {
     return 4;
+  },
+
+  _getMarginTop: function () {
+    return viewportUtils.isTabletViewport() ? 0 : 4;
   }
 });

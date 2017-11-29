@@ -1,6 +1,6 @@
 var _ = require('underscore');
-var moment = require('moment');
 var d3 = require('d3');
+var moment = require('moment');
 
 var AGGREGATION_FORMATS = {
   second: {
@@ -8,19 +8,19 @@ var AGGREGATION_FORMATS = {
     unit: 's'
   },
   minute: {
-    display: 'HH:mm L',
+    display: 'HH:mm - MMM Do, YYYY',
     unit: 'm'
   },
   hour: {
-    display: 'HH:mm L',
+    display: 'HH:00 - MMM Do, YYYY',
     unit: 'h'
   },
   day: {
-    display: 'Do MMM YYYY',
+    display: 'MMM Do, YYYY',
     unit: 'd'
   },
   week: {
-    display: 'Do MMM YYYY',
+    display: 'MMM Do, YYYY',
     unit: 'w'
   },
   month: {
@@ -46,21 +46,21 @@ format.formatNumber = function (value, unit) {
 
   var format = d3.format('.2s');
   var p = 0;
-  var abs_v = Math.abs(value);
+  var absV = Math.abs(value);
 
   if (value > 1000) {
     value = format(value) + (unit ? ' ' + unit : '');
     return value;
   }
 
-  if (abs_v > 100) {
+  if (absV > 100) {
     p = 0;
-  } else if (abs_v > 10) {
+  } else if (absV > 10) {
     p = 1;
-  } else if (abs_v > 1) {
+  } else if (absV > 1) {
     p = 2;
-  } else if (abs_v > 0) {
-    p = Math.max(Math.ceil(Math.abs(Math.log(abs_v) / Math.log(10))) + 2, 3);
+  } else if (absV > 0) {
+    p = Math.max(Math.ceil(Math.abs(Math.log(absV) / Math.log(10))) + 2, 3);
   }
 
   value = value.toFixed(p);
@@ -94,15 +94,18 @@ format.formatValue = function (value) {
   return value;
 };
 
-format.timestampFactory = function (aggregation) {
+format.timestampFactory = function (aggregation, offset) {
   return function (timestamp) {
     if (!_.has(AGGREGATION_FORMATS, aggregation)) {
       return '-';
     }
-
     var format = AGGREGATION_FORMATS[aggregation];
     var date = moment.unix(timestamp).utc();
-    return date.format(format.display);
+    if (_.isFinite(offset)) {
+      date.utcOffset(offset / 60);
+    }
+    var formatted = date.format(format.display);
+    return formatted;
   };
 };
 
